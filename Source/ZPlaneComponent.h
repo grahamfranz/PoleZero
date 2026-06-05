@@ -24,13 +24,14 @@ namespace polezero
         void mouseDrag (const juce::MouseEvent&) override;
 
     private:
-        enum class Handle { None, Pole, Zero };
+        enum class Handle { None, Pole1, Pole2, Zero1, Zero2 };
 
         void timerCallback() override;
         juce::Point<float> complexToView (float r, float theta) const;
         std::pair<float, float> viewToComplex (juce::Point<float> p) const;
         Handle hitTest (juce::Point<float> p) const;
         void writeFromMouse (Handle h, juce::Point<float> p);
+        bool isLocked() const;
 
         PoleZeroProcessor& processor;
         Handle dragging { Handle::None };

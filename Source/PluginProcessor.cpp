@@ -16,32 +16,39 @@ namespace polezero
     juce::AudioProcessorValueTreeState::ParameterLayout PoleZeroProcessor::createLayout()
     {
         using P = juce::AudioParameterFloat;
+        using B = juce::AudioParameterBool;
         using C = juce::AudioParameterChoice;
+
+        const float pi = juce::MathConstants<float>::pi;
 
         juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
-        // Radii can sit at or past the unit circle. The linear filter is
-        // unstable there; the in-DSP boundary condition is what keeps the
-        // output bounded and gives the runaway its character.
-        layout.add (std::make_unique<P> (juce::ParameterID { kPoleRadius, 1 },
-                                         "Pole Radius",
-                                         juce::NormalisableRange<float> (0.0f, kRadiusMax, 0.0f, 1.0f),
-                                         0.85f));
+        auto addRadius = [&] (const char* id, const char* name, float def)
+        {
+            layout.add (std::make_unique<P> (juce::ParameterID { id, 1 }, name,
+                juce::NormalisableRange<float> (0.0f, kRadiusMax, 0.0f, 1.0f), def));
+        };
 
-        layout.add (std::make_unique<P> (juce::ParameterID { kPoleAngle, 1 },
-                                         "Pole Angle",
-                                         juce::NormalisableRange<float> (0.0f, juce::MathConstants<float>::pi, 0.0f, 1.0f),
-                                         juce::MathConstants<float>::pi * 0.25f));
+        auto addAngle = [&] (const char* id, const char* name, float def)
+        {
+            layout.add (std::make_unique<P> (juce::ParameterID { id, 1 }, name,
+                juce::NormalisableRange<float> (-pi, pi, 0.0f, 1.0f), def));
+        };
 
-        layout.add (std::make_unique<P> (juce::ParameterID { kZeroRadius, 1 },
-                                         "Zero Radius",
-                                         juce::NormalisableRange<float> (0.0f, kRadiusMax, 0.0f, 1.0f),
-                                         1.0f));
+        // Defaults place p2 at conj(p1) and z2 at conj(z1) so unlocking from
+        // the factory state still draws a symmetric pair.
+        addRadius (kPole1Radius, "Pole 1 Radius", 0.85f);
+        addAngle  (kPole1Angle,  "Pole 1 Angle",  pi * 0.25f);
+        addRadius (kPole2Radius, "Pole 2 Radius", 0.85f);
+        addAngle  (kPole2Angle,  "Pole 2 Angle", -pi * 0.25f);
 
-        layout.add (std::make_unique<P> (juce::ParameterID { kZeroAngle, 1 },
-                                         "Zero Angle",
-                                         juce::NormalisableRange<float> (0.0f, juce::MathConstants<float>::pi, 0.0f, 1.0f),
-                                         juce::MathConstants<float>::pi));
+        addRadius (kZero1Radius, "Zero 1 Radius", 1.0f);
+        addAngle  (kZero1Angle,  "Zero 1 Angle",  pi);
+        addRadius (kZero2Radius, "Zero 2 Radius", 1.0f);
+        addAngle  (kZero2Angle,  "Zero 2 Angle",  pi);
+
+        layout.add (std::make_unique<B> (juce::ParameterID { kLockConjugate, 1 },
+                                         "Lock Conjugate", true));
 
         juce::StringArray boundaryChoices;
         for (int i = 0; i < static_cast<int> (BoundaryCondition::NumBoundaryConditions); ++i)
@@ -52,8 +59,6 @@ namespace polezero
                                          boundaryChoices,
                                          static_cast<int> (BoundaryCondition::Tanh)));
 
-        // Boundary level: where the BC bites on the feedback sample.
-        // Skewed so the middle of the knob lands near unity (0 dBFS-ish).
         layout.add (std::make_unique<P> (juce::ParameterID { kBoundaryLevel, 1 },
                                          "Boundary Level",
                                          juce::NormalisableRange<float> (0.05f, 4.0f, 0.0f, 0.4f),
@@ -69,7 +74,7 @@ namespace polezero
 
     void PoleZeroProcessor::prepareToPlay (double, int)
     {
-        filter.prepare (getTotalNumOutputChannels());
+        filter.prepare();
         filter.reset();
     }
 
@@ -87,10 +92,17 @@ namespace polezero
         const int numChannels = buffer.getNumChannels();
         const int numSamples  = buffer.getNumSamples();
 
-        const float rP      = apvts.getRawParameterValue (kPoleRadius)->load();
-        const float thetaP  = apvts.getRawParameterValue (kPoleAngle)->load();
-        const float rZ      = apvts.getRawParameterValue (kZeroRadius)->load();
-        const float thetaZ  = apvts.getRawParameterValue (kZeroAngle)->load();
+        using C = std::complex<float>;
+
+        const float r1p     = apvts.getRawParameterValue (kPole1Radius)->load();
+        const float t1p     = apvts.getRawParameterValue (kPole1Angle)->load();
+        const float r2p     = apvts.getRawParameterValue (kPole2Radius)->load();
+        const float t2p     = apvts.getRawParameterValue (kPole2Angle)->load();
+        const float r1z     = apvts.getRawParameterValue (kZero1Radius)->load();
+        const float t1z     = apvts.getRawParameterValue (kZero1Angle)->load();
+        const float r2z     = apvts.getRawParameterValue (kZero2Radius)->load();
+        const float t2z     = apvts.getRawParameterValue (kZero2Angle)->load();
+        const bool  locked  = apvts.getRawParameterValue (kLockConjugate)->load() > 0.5f;
         const int   bcIndex = static_cast<int> (apvts.getRawParameterValue (kBoundary)->load());
         const float bLevel  = apvts.getRawParameterValue (kBoundaryLevel)->load();
         const float gainDb  = apvts.getRawParameterValue (kGainDb)->load();
@@ -98,29 +110,47 @@ namespace polezero
         const auto bc = static_cast<BoundaryCondition> (juce::jlimit (0,
             static_cast<int> (BoundaryCondition::NumBoundaryConditions) - 1, bcIndex));
 
+        const C p1 = std::polar (r1p, t1p);
+        const C p2 = locked ? std::conj (p1) : std::polar (r2p, t2p);
+        const C z1 = std::polar (r1z, t1z);
+        const C z2 = locked ? std::conj (z1) : std::polar (r2z, t2z);
+
         // Auto-normalise against the linear filter's magnitude at omega = pi/2
-        // so the user's gain control stays meaningful when the pole moves.
-        // This is purely linear-domain; the in-DSP boundary condition shapes
-        // the runaway on top of it.
+        // so the user's gain control stays meaningful as the poles move. The
+        // in-DSP boundary condition shapes the runaway on top of that.
         auto magnitudeAt = [&] (float omega)
         {
-            const std::complex<float> z = std::polar (1.0f, omega);
-            const std::complex<float> num = 1.0f - 2.0f * rZ * std::cos (thetaZ) / z + (rZ * rZ) / (z * z);
-            const std::complex<float> den = 1.0f - 2.0f * rP * std::cos (thetaP) / z + (rP * rP) / (z * z);
+            const C ePos = std::polar (1.0f, -omega); // z^-1 = e^{-j omega}
+            const C num = (1.0f - z1 * ePos) * (1.0f - z2 * ePos);
+            const C den = (1.0f - p1 * ePos) * (1.0f - p2 * ePos);
             return std::abs (num / den);
         };
 
         const float normRef = juce::jmax (1.0e-6f, magnitudeAt (juce::MathConstants<float>::halfPi));
         const float gainLin = juce::Decibels::decibelsToGain (gainDb) / normRef;
 
-        filter.setCoefficients (rP, thetaP, rZ, thetaZ, gainLin);
+        filter.setCoefficients (p1, p2, z1, z2, gainLin);
         filter.setBoundary (bc, bLevel);
 
-        for (int ch = 0; ch < numChannels; ++ch)
+        if (numChannels >= 2)
         {
-            auto* data = buffer.getWritePointer (ch);
+            auto* L = buffer.getWritePointer (0);
+            auto* R = buffer.getWritePointer (1);
             for (int n = 0; n < numSamples; ++n)
-                data[n] = filter.processSample (ch, data[n]);
+            {
+                const C y = filter.processSample (C { L[n], R[n] });
+                L[n] = y.real();
+                R[n] = y.imag();
+            }
+        }
+        else if (numChannels == 1)
+        {
+            auto* M = buffer.getWritePointer (0);
+            for (int n = 0; n < numSamples; ++n)
+            {
+                const C y = filter.processSample (C { M[n], 0.0f });
+                M[n] = y.real();
+            }
         }
     }
 

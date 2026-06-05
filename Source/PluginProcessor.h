@@ -39,15 +39,20 @@ namespace polezero
         juce::AudioProcessorValueTreeState apvts;
 
         // Parameter IDs (also used by the editor).
-        static constexpr const char* kPoleRadius     = "poleRadius";
-        static constexpr const char* kPoleAngle      = "poleAngle";
-        static constexpr const char* kZeroRadius     = "zeroRadius";
-        static constexpr const char* kZeroAngle      = "zeroAngle";
+        static constexpr const char* kPole1Radius    = "pole1Radius";
+        static constexpr const char* kPole1Angle     = "pole1Angle";
+        static constexpr const char* kPole2Radius    = "pole2Radius";
+        static constexpr const char* kPole2Angle     = "pole2Angle";
+        static constexpr const char* kZero1Radius    = "zero1Radius";
+        static constexpr const char* kZero1Angle     = "zero1Angle";
+        static constexpr const char* kZero2Radius    = "zero2Radius";
+        static constexpr const char* kZero2Angle     = "zero2Angle";
+        static constexpr const char* kLockConjugate  = "lockConjugate";
         static constexpr const char* kBoundary       = "boundary";
         static constexpr const char* kBoundaryLevel  = "boundaryLevel";
         static constexpr const char* kGainDb         = "gainDb";
 
-        // Maximum radius reachable from the GUI / parameter ranges. The pole
+        // Maximum radius reachable from the GUI / parameter ranges. The poles
         // can sit at or outside the unit circle; the in-DSP boundary condition
         // is what keeps the filter from diverging.
         static constexpr float kRadiusMax = 1.6f;

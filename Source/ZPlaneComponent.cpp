@@ -34,45 +34,55 @@ namespace polezero
         const float x = (p.x - centre.x) / pxPerUnit;
         const float y = (centre.y - p.y) / pxPerUnit;
         float r = std::sqrt (x * x + y * y);
-        float theta = std::atan2 (y, x);
-        // The processor mirrors via the conjugate, so we only expose the upper
-        // half-plane. Reflect any drag below the real axis back up.
-        if (theta < 0.0f) theta = -theta;
-        r     = juce::jlimit (0.0f, PoleZeroProcessor::kRadiusMax, r);
-        theta = juce::jlimit (0.0f, juce::MathConstants<float>::pi, theta);
+        float theta = std::atan2 (y, x); // in [-pi, pi]
+        r = juce::jlimit (0.0f, PoleZeroProcessor::kRadiusMax, r);
         return { r, theta };
+    }
+
+    bool ZPlaneComponent::isLocked() const
+    {
+        return processor.apvts.getRawParameterValue (PoleZeroProcessor::kLockConjugate)->load() > 0.5f;
     }
 
     void ZPlaneComponent::paint (juce::Graphics& g)
     {
         g.fillAll (juce::Colour (0xff111418));
 
-        // Plot frame
         g.setColour (juce::Colour (0xff1d2329));
         g.fillRoundedRectangle (plotArea, 6.0f);
 
         const auto centre = plotArea.getCentre();
-        const float unitR = pxPerUnit; // |z| = 1
+        const float unitR = pxPerUnit;
 
-        // Unit circle — the stability boundary for the linear filter.
         g.setColour (juce::Colour (0xff5a8db8));
         g.drawEllipse (centre.x - unitR, centre.y - unitR, 2.0f * unitR, 2.0f * unitR, 1.5f);
 
-        // Axes
         g.setColour (juce::Colour (0x55ffffff));
         g.drawLine (plotArea.getX(), centre.y, plotArea.getRight(), centre.y, 1.0f);
         g.drawLine (centre.x, plotArea.getY(), centre.x, plotArea.getBottom(), 1.0f);
 
-        // Labels
         g.setColour (juce::Colour (0x99ffffff));
         g.setFont (11.0f);
         g.drawText ("Re", plotArea.getRight() - 28, (int) centre.y + 4, 26, 14, juce::Justification::right);
         g.drawText ("Im", (int) centre.x + 4, plotArea.getY() + 2, 26, 14, juce::Justification::left);
 
-        const float rP     = processor.apvts.getRawParameterValue (PoleZeroProcessor::kPoleRadius)->load();
-        const float thetaP = processor.apvts.getRawParameterValue (PoleZeroProcessor::kPoleAngle)->load();
-        const float rZ     = processor.apvts.getRawParameterValue (PoleZeroProcessor::kZeroRadius)->load();
-        const float thetaZ = processor.apvts.getRawParameterValue (PoleZeroProcessor::kZeroAngle)->load();
+        const float r1p = processor.apvts.getRawParameterValue (PoleZeroProcessor::kPole1Radius)->load();
+        const float t1p = processor.apvts.getRawParameterValue (PoleZeroProcessor::kPole1Angle)->load();
+        const float r2p = processor.apvts.getRawParameterValue (PoleZeroProcessor::kPole2Radius)->load();
+        const float t2p = processor.apvts.getRawParameterValue (PoleZeroProcessor::kPole2Angle)->load();
+        const float r1z = processor.apvts.getRawParameterValue (PoleZeroProcessor::kZero1Radius)->load();
+        const float t1z = processor.apvts.getRawParameterValue (PoleZeroProcessor::kZero1Angle)->load();
+        const float r2z = processor.apvts.getRawParameterValue (PoleZeroProcessor::kZero2Radius)->load();
+        const float t2z = processor.apvts.getRawParameterValue (PoleZeroProcessor::kZero2Angle)->load();
+
+        const bool locked = isLocked();
+
+        // In locked mode the secondary handle draws at the conjugate of the
+        // primary, regardless of its stored value — matches what the DSP uses.
+        const float r2pDraw = locked ? r1p : r2p;
+        const float t2pDraw = locked ? -t1p : t2p;
+        const float r2zDraw = locked ? r1z : r2z;
+        const float t2zDraw = locked ? -t1z : t2z;
 
         auto drawCross = [&] (juce::Point<float> p, juce::Colour c, float size, float thickness)
         {
@@ -87,47 +97,92 @@ namespace polezero
             g.drawEllipse (p.x - size, p.y - size, 2.0f * size, 2.0f * size, thickness);
         };
 
-        // Pole colour shifts toward orange as the pole approaches / passes the
-        // unit circle to flag the linear-instability region where the BC bites.
-        const float runaway = juce::jlimit (0.0f, 1.0f, (rP - 0.9f) / 0.2f);
-        const juce::Colour poleColour = juce::Colour (0xffff6b6b).interpolatedWith (
-            juce::Colour (0xffffaa33), runaway);
-
-        const auto pole     = complexToView (rP, thetaP);
-        const auto poleConj = complexToView (rP, -thetaP);
-        const auto zero     = complexToView (rZ, thetaZ);
-        const auto zeroConj = complexToView (rZ, -thetaZ);
-
-        drawCross (pole,     poleColour,                       9.0f, 2.5f);
-        drawCross (poleConj, poleColour.withAlpha (0.55f),     7.0f, 2.0f);
+        auto poleColourAt = [] (float r)
+        {
+            const float runaway = juce::jlimit (0.0f, 1.0f, (r - 0.9f) / 0.2f);
+            return juce::Colour (0xffff6b6b).interpolatedWith (juce::Colour (0xffffaa33), runaway);
+        };
 
         const juce::Colour zeroColour (0xff7bc8ff);
-        drawCircle (zero,     zeroColour,                     9.0f, 2.5f);
-        drawCircle (zeroConj, zeroColour.withAlpha (0.55f),   7.0f, 2.0f);
+
+        const auto p1Pt = complexToView (r1p, t1p);
+        const auto p2Pt = complexToView (r2pDraw, t2pDraw);
+        const auto z1Pt = complexToView (r1z, t1z);
+        const auto z2Pt = complexToView (r2zDraw, t2zDraw);
+
+        // Primary handles are always bright. Secondary handles are ghosted in
+        // locked mode (slaves) and full-bright in unlocked mode (independent).
+        const float secAlpha    = locked ? 0.55f : 1.0f;
+        const float secSize     = locked ? 7.0f : 9.0f;
+        const float secThick    = locked ? 2.0f : 2.5f;
+
+        drawCross  (p1Pt, poleColourAt (r1p),                       9.0f,    2.5f);
+        drawCross  (p2Pt, poleColourAt (r2pDraw).withAlpha (secAlpha), secSize, secThick);
+        drawCircle (z1Pt, zeroColour,                               9.0f,    2.5f);
+        drawCircle (z2Pt, zeroColour.withAlpha (secAlpha),          secSize, secThick);
     }
 
     ZPlaneComponent::Handle ZPlaneComponent::hitTest (juce::Point<float> p) const
     {
-        const float rP     = processor.apvts.getRawParameterValue (PoleZeroProcessor::kPoleRadius)->load();
-        const float thetaP = processor.apvts.getRawParameterValue (PoleZeroProcessor::kPoleAngle)->load();
-        const float rZ     = processor.apvts.getRawParameterValue (PoleZeroProcessor::kZeroRadius)->load();
-        const float thetaZ = processor.apvts.getRawParameterValue (PoleZeroProcessor::kZeroAngle)->load();
+        const float r1p = processor.apvts.getRawParameterValue (PoleZeroProcessor::kPole1Radius)->load();
+        const float t1p = processor.apvts.getRawParameterValue (PoleZeroProcessor::kPole1Angle)->load();
+        const float r2p = processor.apvts.getRawParameterValue (PoleZeroProcessor::kPole2Radius)->load();
+        const float t2p = processor.apvts.getRawParameterValue (PoleZeroProcessor::kPole2Angle)->load();
+        const float r1z = processor.apvts.getRawParameterValue (PoleZeroProcessor::kZero1Radius)->load();
+        const float t1z = processor.apvts.getRawParameterValue (PoleZeroProcessor::kZero1Angle)->load();
+        const float r2z = processor.apvts.getRawParameterValue (PoleZeroProcessor::kZero2Radius)->load();
+        const float t2z = processor.apvts.getRawParameterValue (PoleZeroProcessor::kZero2Angle)->load();
 
-        const auto polePt = complexToView (rP, thetaP);
-        const auto zeroPt = complexToView (rZ, thetaZ);
+        const bool locked = isLocked();
+        const float r2pH = locked ? r1p : r2p;
+        const float t2pH = locked ? -t1p : t2p;
+        const float r2zH = locked ? r1z : r2z;
+        const float t2zH = locked ? -t1z : t2z;
 
-        const float dPole = polePt.getDistanceFrom (p);
-        const float dZero = zeroPt.getDistanceFrom (p);
+        const std::pair<Handle, juce::Point<float>> handles[] = {
+            { Handle::Pole1, complexToView (r1p, t1p) },
+            { Handle::Pole2, complexToView (r2pH, t2pH) },
+            { Handle::Zero1, complexToView (r1z, t1z) },
+            { Handle::Zero2, complexToView (r2zH, t2zH) },
+        };
 
-        if (dPole > kHitRadiusPx && dZero > kHitRadiusPx) return Handle::None;
-        return dPole <= dZero ? Handle::Pole : Handle::Zero;
+        Handle best = Handle::None;
+        float bestDist = kHitRadiusPx;
+        for (const auto& [h, pt] : handles)
+        {
+            const float d = pt.getDistanceFrom (p);
+            if (d <= bestDist)
+            {
+                bestDist = d;
+                best = h;
+            }
+        }
+        return best;
     }
 
     void ZPlaneComponent::writeFromMouse (Handle h, juce::Point<float> p)
     {
-        const auto [r, theta] = viewToComplex (p);
-        const char* rId     = (h == Handle::Pole) ? PoleZeroProcessor::kPoleRadius : PoleZeroProcessor::kZeroRadius;
-        const char* thetaId = (h == Handle::Pole) ? PoleZeroProcessor::kPoleAngle  : PoleZeroProcessor::kZeroAngle;
+        auto [r, theta] = viewToComplex (p);
+
+        const bool locked = isLocked();
+        if (locked)
+        {
+            // Dragging a secondary handle in locked mode is just dragging the
+            // primary at the reflected position.
+            if (h == Handle::Pole2) { h = Handle::Pole1; theta = -theta; }
+            if (h == Handle::Zero2) { h = Handle::Zero1; theta = -theta; }
+        }
+
+        const char* rId     = nullptr;
+        const char* thetaId = nullptr;
+        switch (h)
+        {
+            case Handle::Pole1: rId = PoleZeroProcessor::kPole1Radius; thetaId = PoleZeroProcessor::kPole1Angle; break;
+            case Handle::Pole2: rId = PoleZeroProcessor::kPole2Radius; thetaId = PoleZeroProcessor::kPole2Angle; break;
+            case Handle::Zero1: rId = PoleZeroProcessor::kZero1Radius; thetaId = PoleZeroProcessor::kZero1Angle; break;
+            case Handle::Zero2: rId = PoleZeroProcessor::kZero2Radius; thetaId = PoleZeroProcessor::kZero2Angle; break;
+            default: return;
+        }
 
         if (auto* pr = processor.apvts.getParameter (rId))
             pr->setValueNotifyingHost (pr->convertTo0to1 (r));

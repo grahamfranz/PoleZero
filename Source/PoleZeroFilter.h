@@ -1,42 +1,44 @@
 #pragma once
 
-#include <cmath>
+#include <complex>
 #include <vector>
 
 #include "BoundaryCondition.h"
 
 namespace polezero
 {
-    // Stereo biquad with a conjugate pole pair and a conjugate zero pair.
-    // H(z) = g * (1 - 2 rZ cos(thetaZ) z^-1 + rZ^2 z^-2)
-    //          / (1 - 2 rP cos(thetaP) z^-1 + rP^2 z^-2)
-    // Direct-form II transposed per channel.
+    // Complex-arithmetic biquad on a packed L+iR signal. The user gets two
+    // independent complex poles (p1, p2) and two independent complex zeros
+    // (z1, z2). When p2 = conj(p1) and z2 = conj(z1), the polynomial has
+    // real coefficients, the complex recursion decouples into two identical
+    // real biquads on L and R, and the per-component boundary condition
+    // reproduces the previous scalar BC on each channel bit-for-bit.
     //
-    // The boundary condition is applied to the feedback sample every step.
-    // When the pole sits at or outside the unit circle the linear recursion
-    // would diverge; the BC squashes the feedback to +/- boundaryLevel before
-    // it re-enters the state update, so the runaway energy folds back into
-    // the filter according to the chosen shape.
+    // Drop the conjugate constraint and the filter response becomes asymmetric
+    // in frequency, with energy crossing between L and R every sample.
+    //
+    // The boundary condition is applied to the real and imaginary parts of the
+    // feedback sample independently before they re-enter the state update.
     class PoleZeroFilter
     {
     public:
-        void prepare (int numChannels)
-        {
-            state.assign (static_cast<size_t> (numChannels), { 0.0f, 0.0f });
-        }
+        using C = std::complex<float>;
+
+        void prepare() noexcept { reset(); }
 
         void reset() noexcept
         {
-            for (auto& s : state) s = { 0.0f, 0.0f };
+            state.z1 = C { 0.0f, 0.0f };
+            state.z2 = C { 0.0f, 0.0f };
         }
 
-        void setCoefficients (float rP, float thetaP, float rZ, float thetaZ, float gainLinear) noexcept
+        void setCoefficients (C p1, C p2, C z1, C z2, float gainLinear) noexcept
         {
-            b0 = gainLinear;
-            b1 = -2.0f * rZ * std::cos (thetaZ) * gainLinear;
-            b2 = (rZ * rZ) * gainLinear;
-            a1 = -2.0f * rP * std::cos (thetaP);
-            a2 = rP * rP;
+            b0 = C { gainLinear, 0.0f };
+            b1 = -gainLinear * (z1 + z2);
+            b2 =  gainLinear * (z1 * z2);
+            a1 = -(p1 + p2);
+            a2 =  p1 * p2;
         }
 
         void setBoundary (BoundaryCondition newBc, float newLevel) noexcept
@@ -45,22 +47,22 @@ namespace polezero
             level = newLevel;
         }
 
-        float processSample (int channel, float x) noexcept
+        C processSample (C x) noexcept
         {
-            auto& s = state[static_cast<size_t> (channel)];
-            const float yRaw = b0 * x + s.z1;
-            const float y    = applyBoundarySigned (yRaw, level, bc);
-            s.z1 = b1 * x - a1 * y + s.z2;
-            s.z2 = b2 * x - a2 * y;
+            const C yRaw = b0 * x + state.z1;
+            const C y { applyBoundarySigned (yRaw.real(), level, bc),
+                        applyBoundarySigned (yRaw.imag(), level, bc) };
+            state.z1 = b1 * x - a1 * y + state.z2;
+            state.z2 = b2 * x - a2 * y;
             return y;
         }
 
     private:
-        struct State { float z1; float z2; };
-        std::vector<State> state;
+        struct State { C z1 { 0.0f, 0.0f }; C z2 { 0.0f, 0.0f }; };
+        State state;
 
-        float b0 { 1.0f }, b1 { 0.0f }, b2 { 0.0f };
-        float a1 { 0.0f }, a2 { 0.0f };
+        C b0 { 1.0f, 0.0f }, b1 { 0.0f, 0.0f }, b2 { 0.0f, 0.0f };
+        C a1 { 0.0f, 0.0f }, a2 { 0.0f, 0.0f };
 
         BoundaryCondition bc { BoundaryCondition::Tanh };
         float level { 1.0f };

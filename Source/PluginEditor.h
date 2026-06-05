@@ -23,6 +23,8 @@ namespace polezero
 
         ZPlaneComponent zPlane;
 
+        juce::ToggleButton lockConjugateButton { "Lock Conjugate" };
+
         juce::ComboBox boundaryBox;
         juce::Label    boundaryLabel { {}, "Boundary" };
 
@@ -32,9 +34,11 @@ namespace polezero
         juce::Slider gainSlider;
         juce::Label  gainLabel { {}, "Gain (dB)" };
 
+        using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
         using ComboAttachment  = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
         using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
 
+        std::unique_ptr<ButtonAttachment> lockConjugateAttachment;
         std::unique_ptr<ComboAttachment>  boundaryAttachment;
         std::unique_ptr<SliderAttachment> boundaryLevelAttachment;
         std::unique_ptr<SliderAttachment> gainAttachment;

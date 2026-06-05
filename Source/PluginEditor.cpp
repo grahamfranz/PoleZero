@@ -9,6 +9,10 @@ namespace polezero
     {
         addAndMakeVisible (zPlane);
 
+        addAndMakeVisible (lockConjugateButton);
+        lockConjugateAttachment = std::make_unique<ButtonAttachment> (
+            processor.apvts, PoleZeroProcessor::kLockConjugate, lockConjugateButton);
+
         addAndMakeVisible (boundaryLabel);
         boundaryLabel.setJustificationType (juce::Justification::centredLeft);
 
@@ -38,8 +42,8 @@ namespace polezero
             processor.apvts, PoleZeroProcessor::kGainDb, gainSlider);
 
         setResizable (true, true);
-        setResizeLimits (520, 460, 1600, 1200);
-        setSize (720, 600);
+        setResizeLimits (520, 500, 1600, 1200);
+        setSize (720, 640);
     }
 
     void PoleZeroEditor::paint (juce::Graphics& g)
@@ -58,11 +62,15 @@ namespace polezero
         auto bounds = getLocalBounds().reduced (12);
         bounds.removeFromTop (20); // header text
 
-        auto controls = bounds.removeFromBottom (136);
+        auto controls = bounds.removeFromBottom (172);
         zPlane.setBounds (bounds);
 
         controls.removeFromTop (8);
 
+        auto row0 = controls.removeFromTop (28);
+        lockConjugateButton.setBounds (row0.removeFromLeft (200));
+
+        controls.removeFromTop (8);
         auto row1 = controls.removeFromTop (28);
         boundaryLabel.setBounds (row1.removeFromLeft (90));
         boundaryBox.setBounds   (row1.removeFromLeft (180));
