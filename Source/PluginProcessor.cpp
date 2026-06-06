@@ -59,17 +59,13 @@ namespace polezero
                                          boundaryChoices,
                                          static_cast<int> (BoundaryCondition::Tanh)));
 
+        // Boundary level is the BC threshold relative to the auto-normalised
+        // filter peak. Defaults at ~+6dB headroom so the BC behaves as a
+        // safety net catching runaway, not a permanent waveshaper.
         layout.add (std::make_unique<P> (juce::ParameterID { kBoundaryLevel, 1 },
                                          "Boundary Level",
-                                         juce::NormalisableRange<float> (0.05f, 4.0f, 0.0f, 0.4f),
-                                         1.0f));
-
-        // Drive scales the input feeding the filter (and the BC). Output is a
-        // pure post-everything trim with no character impact.
-        layout.add (std::make_unique<P> (juce::ParameterID { kDriveDb, 1 },
-                                         "Drive",
-                                         juce::NormalisableRange<float> (-24.0f, 24.0f, 0.0f, 1.0f),
-                                         0.0f));
+                                         juce::NormalisableRange<float> (0.3f, 4.0f, 0.0f, 1.0f),
+                                         2.0f));
 
         layout.add (std::make_unique<P> (juce::ParameterID { kOutputDb, 1 },
                                          "Output",
@@ -122,7 +118,6 @@ namespace polezero
         const bool  locked  = apvts.getRawParameterValue (kLockConjugate)->load() > 0.5f;
         const int   bcIndex   = static_cast<int> (apvts.getRawParameterValue (kBoundary)->load());
         const float bLevel    = apvts.getRawParameterValue (kBoundaryLevel)->load();
-        const float driveDb   = apvts.getRawParameterValue (kDriveDb)->load();
         const float outputDb  = apvts.getRawParameterValue (kOutputDb)->load();
 
         const auto bc = static_cast<BoundaryCondition> (juce::jlimit (0,
@@ -148,10 +143,10 @@ namespace polezero
             return std::abs (num / den);
         };
 
-        const float normRef  = juce::jmax (1.0e-6f, magnitudeAt (juce::MathConstants<float>::halfPi));
-        const float driveLin = juce::Decibels::decibelsToGain (driveDb) / normRef;
+        const float normRef = juce::jmax (1.0e-6f, magnitudeAt (juce::MathConstants<float>::halfPi));
+        const float gainLin = 1.0f / normRef;
 
-        filter.setCoefficients (p1, p2, z1, z2, driveLin);
+        filter.setCoefficients (p1, p2, z1, z2, gainLin);
         filter.setBoundary (bc, bLevel);
 
         juce::dsp::AudioBlock<float> block (buffer);

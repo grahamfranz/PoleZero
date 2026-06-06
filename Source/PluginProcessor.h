@@ -51,7 +51,6 @@ namespace polezero
         static constexpr const char* kLockConjugate  = "lockConjugate";
         static constexpr const char* kBoundary       = "boundary";
         static constexpr const char* kBoundaryLevel  = "boundaryLevel";
-        static constexpr const char* kDriveDb        = "driveDb";
         static constexpr const char* kOutputDb       = "outputDb";
 
         // Maximum radius reachable from the GUI / parameter ranges. The poles

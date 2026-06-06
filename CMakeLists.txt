@@ -54,7 +54,8 @@ juce_add_plugin(PoleZero
 target_sources(PoleZero PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
-    Source/ZPlaneComponent.cpp)
+    Source/ZPlaneComponent.cpp
+    Source/MagnitudeResponseComponent.cpp)
 
 target_compile_definitions(PoleZero PRIVATE
     JUCE_WEB_BROWSER=0

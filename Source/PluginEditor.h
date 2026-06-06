@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "MagnitudeResponseComponent.h"
 #include "ZPlaneComponent.h"
 
 namespace polezero
@@ -21,15 +22,13 @@ namespace polezero
     private:
         PoleZeroProcessor& processor;
 
-        ZPlaneComponent zPlane;
+        ZPlaneComponent             zPlane;
+        MagnitudeResponseComponent  magnitudeView;
 
         juce::ToggleButton lockConjugateButton { "Lock Conjugate" };
 
         juce::ComboBox boundaryBox;
         juce::Label    boundaryLabel { {}, "Boundary" };
-
-        juce::Slider driveSlider;
-        juce::Label  driveLabel { {}, "Drive" };
 
         juce::Slider boundaryLevelSlider;
         juce::Label  boundaryLevelLabel { {}, "Level" };
@@ -43,7 +42,6 @@ namespace polezero
 
         std::unique_ptr<ButtonAttachment> lockConjugateAttachment;
         std::unique_ptr<ComboAttachment>  boundaryAttachment;
-        std::unique_ptr<SliderAttachment> driveAttachment;
         std::unique_ptr<SliderAttachment> boundaryLevelAttachment;
         std::unique_ptr<SliderAttachment> outputAttachment;
 

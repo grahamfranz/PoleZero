@@ -5,9 +5,10 @@
 namespace polezero
 {
     PoleZeroEditor::PoleZeroEditor (PoleZeroProcessor& p)
-        : juce::AudioProcessorEditor (&p), processor (p), zPlane (p)
+        : juce::AudioProcessorEditor (&p), processor (p), zPlane (p), magnitudeView (p)
     {
         addAndMakeVisible (zPlane);
+        addAndMakeVisible (magnitudeView);
 
         addAndMakeVisible (lockConjugateButton);
         lockConjugateAttachment = std::make_unique<ButtonAttachment> (
@@ -32,47 +33,44 @@ namespace polezero
             s.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 16);
         };
 
-        setupRotary (driveSlider,         driveLabel);
         setupRotary (boundaryLevelSlider, boundaryLevelLabel);
         setupRotary (outputSlider,        outputLabel);
 
-        driveAttachment = std::make_unique<SliderAttachment> (
-            processor.apvts, PoleZeroProcessor::kDriveDb, driveSlider);
         boundaryLevelAttachment = std::make_unique<SliderAttachment> (
             processor.apvts, PoleZeroProcessor::kBoundaryLevel, boundaryLevelSlider);
         outputAttachment = std::make_unique<SliderAttachment> (
             processor.apvts, PoleZeroProcessor::kOutputDb, outputSlider);
 
         setResizable (true, true);
-        setResizeLimits (560, 420, 1800, 1200);
-        setSize (760, 520);
+        setResizeLimits (560, 440, 1800, 1200);
+        setSize (760, 560);
     }
 
     void PoleZeroEditor::paint (juce::Graphics& g)
     {
         g.fillAll (juce::Colour (0xff0c0f12));
 
-        g.setColour (juce::Colour (0x99ffffff));
+        g.setColour (juce::Colour (0x66ffffff));
         g.setFont (13.0f);
         g.drawText ("PoleZero",
-                    getLocalBounds().removeFromTop (24).reduced (14, 4),
+                    getLocalBounds().removeFromTop (22).reduced (14, 4),
                     juce::Justification::centredLeft);
-
-        g.setColour (juce::Colour (0x55ffffff));
-        g.setFont (11.0f);
-        g.drawText ("pole angle = oscillation pitch  ·  drag along the unit circle",
-                    getLocalBounds().removeFromTop (24).reduced (14, 4),
-                    juce::Justification::centredRight);
     }
 
     void PoleZeroEditor::resized()
     {
         auto bounds = getLocalBounds().reduced (12);
-        bounds.removeFromTop (22); // header strip
+        bounds.removeFromTop (18); // header
+
+        // Magnitude curve sits beneath everything as a slim readout strip.
+        const int magnitudeStripH = 96;
+        auto magArea = bounds.removeFromBottom (magnitudeStripH);
+        bounds.removeFromBottom (6);
+        magnitudeView.setBounds (magArea);
 
         const int controlsWidth = 220;
         auto controls = bounds.removeFromRight (controlsWidth);
-        controls.removeFromLeft (12); // gap
+        controls.removeFromLeft (12);
 
         zPlane.setBounds (bounds);
 
@@ -89,16 +87,12 @@ namespace polezero
         boundaryBox.setBounds   (controls.removeFromTop (comboH));
         controls.removeFromTop (gap * 2);
 
-        // Three rotaries side-by-side: Drive | Level | Output
+        // Two rotaries: Level | Output
         const int rotaryRowH = 88;
         auto rotaries = controls.removeFromTop (rotaryRowH);
-        const int third = rotaries.getWidth() / 3;
-        auto rDrive  = rotaries.removeFromLeft (third);
-        auto rLevel  = rotaries.removeFromLeft (third);
+        const int half = rotaries.getWidth() / 2;
+        auto rLevel  = rotaries.removeFromLeft (half);
         auto rOutput = rotaries;
-
-        driveLabel.setBounds  (rDrive.removeFromTop (labelH));
-        driveSlider.setBounds (rDrive);
 
         boundaryLevelLabel.setBounds  (rLevel.removeFromTop (labelH));
         boundaryLevelSlider.setBounds (rLevel);
