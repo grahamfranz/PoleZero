@@ -38,9 +38,15 @@ namespace polezero
         juce::Rectangle<float> plotArea;
         float pxPerUnit { 1.0f };
 
-        // View half-extent in z-plane units; lets the user drag outside the
-        // unit circle to feel the boundary condition.
-        static constexpr float kViewExtent = 2.2f;
+        // Piecewise radial mapping: inside the unit circle is 1:1, outside is
+        // compressed by kOutsideCompression. Reclaims most of the plot for the
+        // region where pole/zero placement actually changes the character.
+        static constexpr float kOutsideCompression = 0.4f;
+        static float radiusToView (float r);
+        static float viewToRadius (float v);
+
+        // View half-extent in remapped z-plane units; covers radius 0 .. 1.6.
+        static constexpr float kViewExtent = 1.0f + kOutsideCompression * (1.6f - 1.0f);
         static constexpr float kHitRadiusPx = 12.0f;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ZPlaneComponent)

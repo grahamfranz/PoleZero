@@ -28,11 +28,14 @@ namespace polezero
         juce::ComboBox boundaryBox;
         juce::Label    boundaryLabel { {}, "Boundary" };
 
+        juce::Slider driveSlider;
+        juce::Label  driveLabel { {}, "Drive" };
+
         juce::Slider boundaryLevelSlider;
         juce::Label  boundaryLevelLabel { {}, "Level" };
 
-        juce::Slider gainSlider;
-        juce::Label  gainLabel { {}, "Gain (dB)" };
+        juce::Slider outputSlider;
+        juce::Label  outputLabel { {}, "Output" };
 
         using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
         using ComboAttachment  = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
@@ -40,8 +43,9 @@ namespace polezero
 
         std::unique_ptr<ButtonAttachment> lockConjugateAttachment;
         std::unique_ptr<ComboAttachment>  boundaryAttachment;
+        std::unique_ptr<SliderAttachment> driveAttachment;
         std::unique_ptr<SliderAttachment> boundaryLevelAttachment;
-        std::unique_ptr<SliderAttachment> gainAttachment;
+        std::unique_ptr<SliderAttachment> outputAttachment;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PoleZeroEditor)
     };

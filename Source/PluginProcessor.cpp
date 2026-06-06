@@ -64,8 +64,15 @@ namespace polezero
                                          juce::NormalisableRange<float> (0.05f, 4.0f, 0.0f, 0.4f),
                                          1.0f));
 
-        layout.add (std::make_unique<P> (juce::ParameterID { kGainDb, 1 },
-                                         "Gain",
+        // Drive scales the input feeding the filter (and the BC). Output is a
+        // pure post-everything trim with no character impact.
+        layout.add (std::make_unique<P> (juce::ParameterID { kDriveDb, 1 },
+                                         "Drive",
+                                         juce::NormalisableRange<float> (-24.0f, 24.0f, 0.0f, 1.0f),
+                                         0.0f));
+
+        layout.add (std::make_unique<P> (juce::ParameterID { kOutputDb, 1 },
+                                         "Output",
                                          juce::NormalisableRange<float> (-24.0f, 24.0f, 0.0f, 1.0f),
                                          0.0f));
 
@@ -113,9 +120,10 @@ namespace polezero
         const float r2z     = apvts.getRawParameterValue (kZero2Radius)->load();
         const float t2z     = apvts.getRawParameterValue (kZero2Angle)->load();
         const bool  locked  = apvts.getRawParameterValue (kLockConjugate)->load() > 0.5f;
-        const int   bcIndex = static_cast<int> (apvts.getRawParameterValue (kBoundary)->load());
-        const float bLevel  = apvts.getRawParameterValue (kBoundaryLevel)->load();
-        const float gainDb  = apvts.getRawParameterValue (kGainDb)->load();
+        const int   bcIndex   = static_cast<int> (apvts.getRawParameterValue (kBoundary)->load());
+        const float bLevel    = apvts.getRawParameterValue (kBoundaryLevel)->load();
+        const float driveDb   = apvts.getRawParameterValue (kDriveDb)->load();
+        const float outputDb  = apvts.getRawParameterValue (kOutputDb)->load();
 
         const auto bc = static_cast<BoundaryCondition> (juce::jlimit (0,
             static_cast<int> (BoundaryCondition::NumBoundaryConditions) - 1, bcIndex));
@@ -140,10 +148,10 @@ namespace polezero
             return std::abs (num / den);
         };
 
-        const float normRef = juce::jmax (1.0e-6f, magnitudeAt (juce::MathConstants<float>::halfPi));
-        const float gainLin = juce::Decibels::decibelsToGain (gainDb) / normRef;
+        const float normRef  = juce::jmax (1.0e-6f, magnitudeAt (juce::MathConstants<float>::halfPi));
+        const float driveLin = juce::Decibels::decibelsToGain (driveDb) / normRef;
 
-        filter.setCoefficients (p1, p2, z1, z2, gainLin);
+        filter.setCoefficients (p1, p2, z1, z2, driveLin);
         filter.setBoundary (bc, bLevel);
 
         juce::dsp::AudioBlock<float> block (buffer);
@@ -174,6 +182,11 @@ namespace polezero
         }
 
         oversampler->processSamplesDown (block);
+
+        // Pure post-everything output trim — doesn't change the BC character.
+        const float outputLin = juce::Decibels::decibelsToGain (outputDb);
+        if (outputLin != 1.0f)
+            buffer.applyGain (outputLin);
 
         juce::ignoreUnused (numChannels, numSamples);
     }

@@ -12,6 +12,16 @@ namespace polezero
 
     ZPlaneComponent::~ZPlaneComponent() = default;
 
+    float ZPlaneComponent::radiusToView (float r)
+    {
+        return r <= 1.0f ? r : 1.0f + kOutsideCompression * (r - 1.0f);
+    }
+
+    float ZPlaneComponent::viewToRadius (float v)
+    {
+        return v <= 1.0f ? v : 1.0f + (v - 1.0f) / kOutsideCompression;
+    }
+
     void ZPlaneComponent::resized()
     {
         const auto bounds = getLocalBounds().toFloat();
@@ -22,8 +32,9 @@ namespace polezero
 
     juce::Point<float> ZPlaneComponent::complexToView (float r, float theta) const
     {
-        const float x = r * std::cos (theta);
-        const float y = r * std::sin (theta);
+        const float rView = radiusToView (r);
+        const float x = rView * std::cos (theta);
+        const float y = rView * std::sin (theta);
         const auto centre = plotArea.getCentre();
         return { centre.x + x * pxPerUnit, centre.y - y * pxPerUnit };
     }
@@ -33,9 +44,9 @@ namespace polezero
         const auto centre = plotArea.getCentre();
         const float x = (p.x - centre.x) / pxPerUnit;
         const float y = (centre.y - p.y) / pxPerUnit;
-        float r = std::sqrt (x * x + y * y);
-        float theta = std::atan2 (y, x); // in [-pi, pi]
-        r = juce::jlimit (0.0f, PoleZeroProcessor::kRadiusMax, r);
+        const float vR = juce::jlimit (0.0f, kViewExtent, std::sqrt (x * x + y * y));
+        const float theta = std::atan2 (y, x); // in [-pi, pi]
+        const float r = juce::jlimit (0.0f, PoleZeroProcessor::kRadiusMax, viewToRadius (vR));
         return { r, theta };
     }
 

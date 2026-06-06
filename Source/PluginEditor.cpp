@@ -23,23 +23,25 @@ namespace polezero
         boundaryAttachment = std::make_unique<ComboAttachment> (
             processor.apvts, PoleZeroProcessor::kBoundary, boundaryBox);
 
-        addAndMakeVisible (boundaryLevelLabel);
-        boundaryLevelLabel.setJustificationType (juce::Justification::centred);
+        auto setupRotary = [&] (juce::Slider& s, juce::Label& l)
+        {
+            addAndMakeVisible (l);
+            l.setJustificationType (juce::Justification::centred);
+            addAndMakeVisible (s);
+            s.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+            s.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 16);
+        };
 
-        addAndMakeVisible (boundaryLevelSlider);
-        boundaryLevelSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-        boundaryLevelSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 70, 16);
+        setupRotary (driveSlider,         driveLabel);
+        setupRotary (boundaryLevelSlider, boundaryLevelLabel);
+        setupRotary (outputSlider,        outputLabel);
+
+        driveAttachment = std::make_unique<SliderAttachment> (
+            processor.apvts, PoleZeroProcessor::kDriveDb, driveSlider);
         boundaryLevelAttachment = std::make_unique<SliderAttachment> (
             processor.apvts, PoleZeroProcessor::kBoundaryLevel, boundaryLevelSlider);
-
-        addAndMakeVisible (gainLabel);
-        gainLabel.setJustificationType (juce::Justification::centred);
-
-        addAndMakeVisible (gainSlider);
-        gainSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-        gainSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 70, 16);
-        gainAttachment = std::make_unique<SliderAttachment> (
-            processor.apvts, PoleZeroProcessor::kGainDb, gainSlider);
+        outputAttachment = std::make_unique<SliderAttachment> (
+            processor.apvts, PoleZeroProcessor::kOutputDb, outputSlider);
 
         setResizable (true, true);
         setResizeLimits (560, 420, 1800, 1200);
@@ -87,17 +89,21 @@ namespace polezero
         boundaryBox.setBounds   (controls.removeFromTop (comboH));
         controls.removeFromTop (gap * 2);
 
-        // Two rotaries side-by-side
-        const int rotaryRowH = 76;
+        // Three rotaries side-by-side: Drive | Level | Output
+        const int rotaryRowH = 88;
         auto rotaries = controls.removeFromTop (rotaryRowH);
-        const int half = rotaries.getWidth() / 2;
-        auto leftRot  = rotaries.removeFromLeft (half);
-        auto rightRot = rotaries;
+        const int third = rotaries.getWidth() / 3;
+        auto rDrive  = rotaries.removeFromLeft (third);
+        auto rLevel  = rotaries.removeFromLeft (third);
+        auto rOutput = rotaries;
 
-        boundaryLevelLabel.setBounds  (leftRot.removeFromTop (labelH));
-        boundaryLevelSlider.setBounds (leftRot);
+        driveLabel.setBounds  (rDrive.removeFromTop (labelH));
+        driveSlider.setBounds (rDrive);
 
-        gainLabel.setBounds  (rightRot.removeFromTop (labelH));
-        gainSlider.setBounds (rightRot);
+        boundaryLevelLabel.setBounds  (rLevel.removeFromTop (labelH));
+        boundaryLevelSlider.setBounds (rLevel);
+
+        outputLabel.setBounds  (rOutput.removeFromTop (labelH));
+        outputSlider.setBounds (rOutput);
     }
 }
