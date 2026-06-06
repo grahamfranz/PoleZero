@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_dsp/juce_dsp.h>
 
 #include "BoundaryCondition.h"
 #include "PoleZeroFilter.h"
@@ -57,10 +58,16 @@ namespace polezero
         // is what keeps the filter from diverging.
         static constexpr float kRadiusMax = 1.6f;
 
+        // 4x internal oversampling (2 polyphase IIR stages) tames the
+        // harmonics the boundary condition kicks up over Nyquist.
+        static constexpr int kOversampleStages = 2;
+        static constexpr int kOversampleFactor = 1 << kOversampleStages;
+
     private:
         static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
 
         PoleZeroFilter filter;
+        std::unique_ptr<juce::dsp::Oversampling<float>> oversampler;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PoleZeroProcessor)
     };

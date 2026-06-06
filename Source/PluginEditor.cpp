@@ -24,26 +24,26 @@ namespace polezero
             processor.apvts, PoleZeroProcessor::kBoundary, boundaryBox);
 
         addAndMakeVisible (boundaryLevelLabel);
-        boundaryLevelLabel.setJustificationType (juce::Justification::centredLeft);
+        boundaryLevelLabel.setJustificationType (juce::Justification::centred);
 
         addAndMakeVisible (boundaryLevelSlider);
-        boundaryLevelSlider.setSliderStyle (juce::Slider::LinearHorizontal);
-        boundaryLevelSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 60, 20);
+        boundaryLevelSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        boundaryLevelSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 70, 16);
         boundaryLevelAttachment = std::make_unique<SliderAttachment> (
             processor.apvts, PoleZeroProcessor::kBoundaryLevel, boundaryLevelSlider);
 
         addAndMakeVisible (gainLabel);
-        gainLabel.setJustificationType (juce::Justification::centredLeft);
+        gainLabel.setJustificationType (juce::Justification::centred);
 
         addAndMakeVisible (gainSlider);
-        gainSlider.setSliderStyle (juce::Slider::LinearHorizontal);
-        gainSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 60, 20);
+        gainSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        gainSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 70, 16);
         gainAttachment = std::make_unique<SliderAttachment> (
             processor.apvts, PoleZeroProcessor::kGainDb, gainSlider);
 
         setResizable (true, true);
-        setResizeLimits (520, 500, 1600, 1200);
-        setSize (720, 640);
+        setResizeLimits (560, 420, 1800, 1200);
+        setSize (760, 520);
     }
 
     void PoleZeroEditor::paint (juce::Graphics& g)
@@ -52,37 +52,52 @@ namespace polezero
 
         g.setColour (juce::Colour (0x99ffffff));
         g.setFont (13.0f);
-        g.drawText ("PoleZero — drag the pole (x) and zero (o) on the z-plane",
+        g.drawText ("PoleZero",
                     getLocalBounds().removeFromTop (24).reduced (14, 4),
                     juce::Justification::centredLeft);
+
+        g.setColour (juce::Colour (0x55ffffff));
+        g.setFont (11.0f);
+        g.drawText ("pole angle = oscillation pitch  ·  drag along the unit circle",
+                    getLocalBounds().removeFromTop (24).reduced (14, 4),
+                    juce::Justification::centredRight);
     }
 
     void PoleZeroEditor::resized()
     {
         auto bounds = getLocalBounds().reduced (12);
-        bounds.removeFromTop (20); // header text
+        bounds.removeFromTop (22); // header strip
 
-        auto controls = bounds.removeFromBottom (172);
+        const int controlsWidth = 220;
+        auto controls = bounds.removeFromRight (controlsWidth);
+        controls.removeFromLeft (12); // gap
+
         zPlane.setBounds (bounds);
 
-        controls.removeFromTop (8);
+        const int knobH   = 28;
+        const int comboH  = 26;
+        const int labelH  = 16;
+        const int gap     = 10;
 
-        auto row0 = controls.removeFromTop (28);
-        lockConjugateButton.setBounds (row0.removeFromLeft (200));
+        lockConjugateButton.setBounds (controls.removeFromTop (knobH));
+        controls.removeFromTop (gap * 2);
 
-        controls.removeFromTop (8);
-        auto row1 = controls.removeFromTop (28);
-        boundaryLabel.setBounds (row1.removeFromLeft (90));
-        boundaryBox.setBounds   (row1.removeFromLeft (180));
+        boundaryLabel.setJustificationType (juce::Justification::centredLeft);
+        boundaryLabel.setBounds (controls.removeFromTop (labelH));
+        boundaryBox.setBounds   (controls.removeFromTop (comboH));
+        controls.removeFromTop (gap * 2);
 
-        controls.removeFromTop (8);
-        auto row2 = controls.removeFromTop (28);
-        boundaryLevelLabel.setBounds  (row2.removeFromLeft (90));
-        boundaryLevelSlider.setBounds (row2);
+        // Two rotaries side-by-side
+        const int rotaryRowH = 76;
+        auto rotaries = controls.removeFromTop (rotaryRowH);
+        const int half = rotaries.getWidth() / 2;
+        auto leftRot  = rotaries.removeFromLeft (half);
+        auto rightRot = rotaries;
 
-        controls.removeFromTop (8);
-        auto row3 = controls.removeFromTop (28);
-        gainLabel.setBounds  (row3.removeFromLeft (90));
-        gainSlider.setBounds (row3);
+        boundaryLevelLabel.setBounds  (leftRot.removeFromTop (labelH));
+        boundaryLevelSlider.setBounds (leftRot);
+
+        gainLabel.setBounds  (rightRot.removeFromTop (labelH));
+        gainSlider.setBounds (rightRot);
     }
 }

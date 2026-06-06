@@ -72,10 +72,20 @@ namespace polezero
         return layout;
     }
 
-    void PoleZeroProcessor::prepareToPlay (double, int)
+    void PoleZeroProcessor::prepareToPlay (double, int samplesPerBlock)
     {
         filter.prepare();
         filter.reset();
+
+        const size_t channels = static_cast<size_t> (juce::jmax (1, getTotalNumOutputChannels()));
+        oversampler = std::make_unique<juce::dsp::Oversampling<float>> (
+            channels,
+            static_cast<size_t> (kOversampleStages),
+            juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR,
+            true);
+        oversampler->initProcessing (static_cast<size_t> (samplesPerBlock));
+        oversampler->reset();
+        setLatencySamples (static_cast<int> (oversampler->getLatencyInSamples()));
     }
 
     bool PoleZeroProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -110,10 +120,14 @@ namespace polezero
         const auto bc = static_cast<BoundaryCondition> (juce::jlimit (0,
             static_cast<int> (BoundaryCondition::NumBoundaryConditions) - 1, bcIndex));
 
-        const C p1 = std::polar (r1p, t1p);
-        const C p2 = locked ? std::conj (p1) : std::polar (r2p, t2p);
-        const C z1 = std::polar (r1z, t1z);
-        const C z2 = locked ? std::conj (z1) : std::polar (r2z, t2z);
+        // Pole/zero angles live in user-Nyquist space; the filter runs at
+        // kOversampleFactor x that rate, so scale angles down to keep the
+        // perceived pitch constant.
+        const float angleScale = 1.0f / static_cast<float> (kOversampleFactor);
+        const C p1 = std::polar (r1p, t1p * angleScale);
+        const C p2 = locked ? std::conj (p1) : std::polar (r2p, t2p * angleScale);
+        const C z1 = std::polar (r1z, t1z * angleScale);
+        const C z2 = locked ? std::conj (z1) : std::polar (r2z, t2z * angleScale);
 
         // Auto-normalise against the linear filter's magnitude at omega = pi/2
         // so the user's gain control stays meaningful as the poles move. The
@@ -132,26 +146,36 @@ namespace polezero
         filter.setCoefficients (p1, p2, z1, z2, gainLin);
         filter.setBoundary (bc, bLevel);
 
-        if (numChannels >= 2)
+        juce::dsp::AudioBlock<float> block (buffer);
+        auto upBlock = oversampler->processSamplesUp (block);
+
+        const int upNumSamples  = static_cast<int> (upBlock.getNumSamples());
+        const int upNumChannels = static_cast<int> (upBlock.getNumChannels());
+
+        if (upNumChannels >= 2)
         {
-            auto* L = buffer.getWritePointer (0);
-            auto* R = buffer.getWritePointer (1);
-            for (int n = 0; n < numSamples; ++n)
+            auto* L = upBlock.getChannelPointer (0);
+            auto* R = upBlock.getChannelPointer (1);
+            for (int n = 0; n < upNumSamples; ++n)
             {
                 const C y = filter.processSample (C { L[n], R[n] });
                 L[n] = y.real();
                 R[n] = y.imag();
             }
         }
-        else if (numChannels == 1)
+        else if (upNumChannels == 1)
         {
-            auto* M = buffer.getWritePointer (0);
-            for (int n = 0; n < numSamples; ++n)
+            auto* M = upBlock.getChannelPointer (0);
+            for (int n = 0; n < upNumSamples; ++n)
             {
                 const C y = filter.processSample (C { M[n], 0.0f });
                 M[n] = y.real();
             }
         }
+
+        oversampler->processSamplesDown (block);
+
+        juce::ignoreUnused (numChannels, numSamples);
     }
 
     juce::AudioProcessorEditor* PoleZeroProcessor::createEditor()
