@@ -41,6 +41,14 @@ namespace polezero
         outputAttachment = std::make_unique<SliderAttachment> (
             processor.apvts, PoleZeroProcessor::kOutputDb, outputSlider);
 
+        // SliderAttachment installs a textFromValueFunction that calls the
+        // parameter's default formatter (no fixed precision -> ~7 digits).
+        // Override it here so the text box stays readable.
+        boundaryLevelSlider.textFromValueFunction = [] (double v) { return juce::String (v, 2); };
+        outputSlider.textFromValueFunction        = [] (double v) { return juce::String (v, 1) + " dB"; };
+        boundaryLevelSlider.updateText();
+        outputSlider.updateText();
+
         setResizable (true, true);
         setResizeLimits (560, 440, 1800, 1200);
         setSize (760, 560);

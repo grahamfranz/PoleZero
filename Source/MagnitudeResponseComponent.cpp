@@ -58,15 +58,14 @@ namespace polezero
         g.setColour (juce::Colour (0x22ffffff));
         g.drawLine (bounds.getX(), mapDb (0.0f), bounds.getRight(), mapDb (0.0f), 1.0f);
 
-        // Build the response curve. Frequency is mapped log over the audible
-        // range [0.001 * Nyquist .. Nyquist]; the filter runs internally at
-        // kOversampleFactor x rate so audible omega maps to internal
-        // omega * angleScale.
+        // Build the response curve. Linear frequency axis from DC to Nyquist —
+        // matches the user's linear-angle drag on the unit circle so a pole at
+        // angle theta peaks at horizontal position theta/pi. The filter runs
+        // internally at kOversampleFactor x rate so audible omega maps to
+        // internal omega * angleScale.
         const float pi = juce::MathConstants<float>::pi;
-        const float audibleMin = pi * 0.002f;
+        const float audibleMin = 0.0f;
         const float audibleMax = pi;
-        const float logMin = std::log (audibleMin);
-        const float logMax = std::log (audibleMax);
 
         juce::Path path;
         bool started = false;
@@ -74,7 +73,7 @@ namespace polezero
         for (int i = 0; i < kNumPoints; ++i)
         {
             const float t = static_cast<float> (i) / static_cast<float> (kNumPoints - 1);
-            const float audibleOmega  = std::exp (logMin + t * (logMax - logMin));
+            const float audibleOmega  = audibleMin + t * (audibleMax - audibleMin);
             const float internalOmega = audibleOmega * angleScale;
             const C zinv = std::polar (1.0f, -internalOmega);
             const C num  = (1.0f - z1 * zinv) * (1.0f - z2 * zinv);

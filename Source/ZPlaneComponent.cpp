@@ -57,10 +57,10 @@ namespace polezero
 
     void ZPlaneComponent::paint (juce::Graphics& g)
     {
+        // Single uniform background. The handles can reach the plotArea edge
+        // (view radius = kViewExtent), so a separate plot-area fill would
+        // leave the cross/circle markers straddling a colour seam.
         g.fillAll (juce::Colour (0xff111418));
-
-        g.setColour (juce::Colour (0xff1d2329));
-        g.fillRoundedRectangle (plotArea, 6.0f);
 
         const auto centre = plotArea.getCentre();
         const float unitR = pxPerUnit;
