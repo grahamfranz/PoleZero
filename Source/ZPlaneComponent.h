@@ -1,6 +1,11 @@
 #pragma once
 
+#include <array>
+#include <complex>
+
 #include <juce_gui_basics/juce_gui_basics.h>
+
+#include "TrajectoryProbe.h"
 
 namespace polezero
 {
@@ -15,6 +20,15 @@ namespace polezero
                             private juce::Timer
     {
     public:
+        // Public so the file-scope StageDesc table in ZPlaneComponent.cpp
+        // can name handles by value. Not part of any external contract.
+        enum class Handle
+        {
+            None,
+            PoleA1, PoleA2, ZeroA1, ZeroA2,
+            PoleB1, PoleB2, ZeroB1, ZeroB2
+        };
+
         explicit ZPlaneComponent (PoleZeroProcessor& proc);
         ~ZPlaneComponent() override;
 
@@ -24,19 +38,32 @@ namespace polezero
         void mouseDrag (const juce::MouseEvent&) override;
 
     private:
-        enum class Handle { None, Pole1, Pole2, Zero1, Zero2 };
 
         void timerCallback() override;
         juce::Point<float> complexToView (float r, float theta) const;
+        juce::Point<float> complexToView (std::complex<float> z) const;
         std::pair<float, float> viewToComplex (juce::Point<float> p) const;
         Handle hitTest (juce::Point<float> p) const;
         void writeFromMouse (Handle h, juce::Point<float> p);
-        bool isLocked() const;
+        bool isLockedA() const;
+        bool isLockedB() const;
+        void updateTrail();
+        void fadeTrailImage();
+        void stampTrail (TrajectoryProbe& probe, juce::Colour col);
 
         PoleZeroProcessor& processor;
         Handle dragging { Handle::None };
         juce::Rectangle<float> plotArea;
         float pxPerUnit { 1.0f };
+
+        // Phase-portrait overlay. trailImage is the same size as plotArea; on
+        // each timer tick we fade it slightly and stamp newly-arrived state
+        // samples drained from the two TrajectoryProbes (one per stage). The
+        // image is painted under the pole/zero markers so handles stay
+        // legible even when an orbit passes through them.
+        juce::Image trailImage;
+        static constexpr int kMaxPointsPerFrame = 2048;
+        std::array<std::complex<float>, kMaxPointsPerFrame> trailScratch {};
 
         // Piecewise radial mapping: inside the unit circle is 1:1, outside is
         // compressed by kOutsideCompression. Reclaims most of the plot for the

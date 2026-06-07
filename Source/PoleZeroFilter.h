@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+#include <cmath>
 #include <complex>
 #include <vector>
 
@@ -41,19 +43,59 @@ namespace polezero
             a2 =  p1 * p2;
         }
 
-        void setBoundary (BoundaryCondition newBc, float newLevel) noexcept
+        void setBoundary (BoundaryCondition newBc, float newLevel, BoundaryTap newTap) noexcept
         {
             bc = newBc;
             level = newLevel;
+            tap = newTap;
         }
+
+        C getState1() const noexcept { return state.z1; }
 
         C processSample (C x) noexcept
         {
+            auto shape = [&] (C v) noexcept -> C
+            {
+                return { applyBoundarySigned (v.real(), level, bc),
+                         applyBoundarySigned (v.imag(), level, bc) };
+            };
+
+            if (tap == BoundaryTap::Input)
+                x = shape (x);
+
             const C yRaw = b0 * x + state.z1;
-            const C y { applyBoundarySigned (yRaw.real(), level, bc),
-                        applyBoundarySigned (yRaw.imag(), level, bc) };
-            state.z1 = b1 * x - a1 * y + state.z2;
-            state.z2 = b2 * x - a2 * y;
+            C y = (tap == BoundaryTap::Output) ? shape (yRaw) : yRaw;
+
+            // Output safety net. The BC bounds y for Output/State taps to
+            // |level|, but Input tap leaves the recursion linear and a pole
+            // at or past the unit circle will run y off toward fp infinity
+            // within a handful of samples. A generous absolute clamp here
+            // (well above any musical signal) keeps catastrophic configs
+            // loud-but-bounded rather than producing an inf that the host
+            // renders as a stuck DC clip.
+            constexpr float kSafetyClamp = 100.0f;
+            if (! std::isfinite (y.real()) || ! std::isfinite (y.imag()))
+                y = C { 0.0f, 0.0f };
+            y = C { std::clamp (y.real(), -kSafetyClamp, kSafetyClamp),
+                    std::clamp (y.imag(), -kSafetyClamp, kSafetyClamp) };
+
+            C s1 = b1 * x - a1 * y + state.z2;
+            C s2 = b2 * x - a2 * y;
+
+            if (tap == BoundaryTap::State)
+            {
+                s1 = shape (s1);
+                s2 = shape (s2);
+            }
+
+            // x and y are now bounded, so s1/s2 stay finite for any sane
+            // input. This guard still catches the rare case of a non-finite
+            // sample arriving from the host (denormals or NaN in the bus).
+            if (! std::isfinite (s1.real()) || ! std::isfinite (s1.imag())) s1 = C { 0.0f, 0.0f };
+            if (! std::isfinite (s2.real()) || ! std::isfinite (s2.imag())) s2 = C { 0.0f, 0.0f };
+
+            state.z1 = s1;
+            state.z2 = s2;
             return y;
         }
 
@@ -66,5 +108,6 @@ namespace polezero
 
         BoundaryCondition bc { BoundaryCondition::Tanh };
         float level { 1.0f };
+        BoundaryTap tap { BoundaryTap::Output };
     };
 }

@@ -5,9 +5,34 @@
 
 #include "BoundaryCondition.h"
 #include "PoleZeroFilter.h"
+#include "TrajectoryProbe.h"
 
 namespace polezero
 {
+    // How the two stages combine. Series gives a 4-pole / 4-zero cascade
+    // (B applied to A's output). Sum and Difference are the parallel
+    // routings: A and B each see the input, and we add or subtract their
+    // outputs at the combine point — Difference is the Hordijk twin-peak
+    // trick where the notch between two close resonances becomes the voice.
+    enum class Routing
+    {
+        Series = 0,
+        Sum,
+        Difference,
+        NumRoutings
+    };
+
+    inline const char* routingName (Routing r) noexcept
+    {
+        switch (r)
+        {
+            case Routing::Series:     return "Series";
+            case Routing::Sum:        return "Sum";
+            case Routing::Difference: return "Difference";
+            default:                  return "?";
+        }
+    }
+
     class PoleZeroProcessor : public juce::AudioProcessor
     {
     public:
@@ -39,19 +64,35 @@ namespace polezero
 
         juce::AudioProcessorValueTreeState apvts;
 
-        // Parameter IDs (also used by the editor).
-        static constexpr const char* kPole1Radius    = "pole1Radius";
-        static constexpr const char* kPole1Angle     = "pole1Angle";
-        static constexpr const char* kPole2Radius    = "pole2Radius";
-        static constexpr const char* kPole2Angle     = "pole2Angle";
-        static constexpr const char* kZero1Radius    = "zero1Radius";
-        static constexpr const char* kZero1Angle     = "zero1Angle";
-        static constexpr const char* kZero2Radius    = "zero2Radius";
-        static constexpr const char* kZero2Angle     = "zero2Angle";
-        static constexpr const char* kLockConjugate  = "lockConjugate";
-        static constexpr const char* kBoundary       = "boundary";
-        static constexpr const char* kBoundaryLevel  = "boundaryLevel";
-        static constexpr const char* kOutputDb       = "outputDb";
+        // Parameter IDs (also used by the editor). Stage A keeps the
+        // original "pole1/zero1/..." IDs so existing presets load unchanged
+        // with stage B at identity (all radii = 0).
+        static constexpr const char* kPole1Radius     = "pole1Radius";
+        static constexpr const char* kPole1Angle      = "pole1Angle";
+        static constexpr const char* kPole2Radius     = "pole2Radius";
+        static constexpr const char* kPole2Angle      = "pole2Angle";
+        static constexpr const char* kZero1Radius     = "zero1Radius";
+        static constexpr const char* kZero1Angle      = "zero1Angle";
+        static constexpr const char* kZero2Radius     = "zero2Radius";
+        static constexpr const char* kZero2Angle      = "zero2Angle";
+        static constexpr const char* kLockConjugate   = "lockConjugate";
+        static constexpr const char* kBoundaryTap     = "boundaryTap";
+
+        static constexpr const char* kPoleB1Radius    = "poleB1Radius";
+        static constexpr const char* kPoleB1Angle     = "poleB1Angle";
+        static constexpr const char* kPoleB2Radius    = "poleB2Radius";
+        static constexpr const char* kPoleB2Angle     = "poleB2Angle";
+        static constexpr const char* kZeroB1Radius    = "zeroB1Radius";
+        static constexpr const char* kZeroB1Angle     = "zeroB1Angle";
+        static constexpr const char* kZeroB2Radius    = "zeroB2Radius";
+        static constexpr const char* kZeroB2Angle     = "zeroB2Angle";
+        static constexpr const char* kLockConjugateB  = "lockConjugateB";
+
+        static constexpr const char* kRouting         = "routing";
+        static constexpr const char* kBoundary        = "boundary";
+        static constexpr const char* kBoundaryLevel   = "boundaryLevel";
+        static constexpr const char* kFeedback        = "feedback";
+        static constexpr const char* kOutputDb        = "outputDb";
 
         // Maximum radius reachable from the GUI / parameter ranges. The poles
         // can sit at or outside the unit circle; the in-DSP boundary condition
@@ -63,11 +104,31 @@ namespace polezero
         static constexpr int kOversampleStages = 2;
         static constexpr int kOversampleFactor = 1 << kOversampleStages;
 
+        // Decimation between filter state samples pushed to the UI's
+        // trajectory display. The internal rate is fs * kOversampleFactor,
+        // so at 48 kHz this still gives 24 kHz of state samples — far above
+        // anything a 30 Hz repaint can show, but generous for the lossy
+        // probe's "newest tail" behaviour.
+        static constexpr int kProbeDecimation = 8;
+
+        TrajectoryProbe& getTrajectoryProbeA() noexcept { return probeA; }
+        TrajectoryProbe& getTrajectoryProbeB() noexcept { return probeB; }
+
     private:
         static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
 
-        PoleZeroFilter filter;
+        PoleZeroFilter filterA;
+        PoleZeroFilter filterB;
         std::unique_ptr<juce::dsp::Oversampling<float>> oversampler;
+        TrajectoryProbe probeA;
+        TrajectoryProbe probeB;
+        int probeCounter { 0 };
+        int lastTapIndex { static_cast<int> (BoundaryTap::Output) };
+
+        // One-sample memory of the routed output, mixed back into the input
+        // by the Feedback parameter. With BC tap on Output the in-stage BC
+        // catches any divergence past unity feedback gain.
+        std::complex<float> lastOutput { 0.0f, 0.0f };
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PoleZeroProcessor)
     };

@@ -25,13 +25,26 @@ namespace polezero
         ZPlaneComponent             zPlane;
         MagnitudeResponseComponent  magnitudeView;
 
-        juce::ToggleButton lockConjugateButton { "Lock Conjugate" };
+        juce::ComboBox routingBox;
+        juce::Label    routingLabel { {}, "Routing" };
 
         juce::ComboBox boundaryBox;
         juce::Label    boundaryLabel { {}, "Boundary" };
 
+        juce::ComboBox boundaryTapBox;
+        juce::Label    boundaryTapLabel { {}, "Tap" };
+
+        juce::Label    stageALabel { {}, "Stage A" };
+        juce::ToggleButton lockConjugateButton  { "Lock Conjugate" };
+
+        juce::Label    stageBLabel { {}, "Stage B" };
+        juce::ToggleButton lockConjugateButtonB { "Lock Conjugate" };
+
         juce::Slider boundaryLevelSlider;
         juce::Label  boundaryLevelLabel { {}, "Level" };
+
+        juce::Slider feedbackSlider;
+        juce::Label  feedbackLabel { {}, "Feedback" };
 
         juce::Slider outputSlider;
         juce::Label  outputLabel { {}, "Output" };
@@ -41,8 +54,12 @@ namespace polezero
         using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
 
         std::unique_ptr<ButtonAttachment> lockConjugateAttachment;
+        std::unique_ptr<ButtonAttachment> lockConjugateBAttachment;
+        std::unique_ptr<ComboAttachment>  routingAttachment;
         std::unique_ptr<ComboAttachment>  boundaryAttachment;
+        std::unique_ptr<ComboAttachment>  boundaryTapAttachment;
         std::unique_ptr<SliderAttachment> boundaryLevelAttachment;
+        std::unique_ptr<SliderAttachment> feedbackAttachment;
         std::unique_ptr<SliderAttachment> outputAttachment;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PoleZeroEditor)
