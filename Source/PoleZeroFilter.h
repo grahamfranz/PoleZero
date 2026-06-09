@@ -1,6 +1,5 @@
 #pragma once
 
-#include <algorithm>
 #include <cmath>
 #include <complex>
 #include <vector>
@@ -60,24 +59,8 @@ namespace polezero
                          applyBoundarySigned (v.imag(), level, bc) };
             };
 
-            if (tap == BoundaryTap::Input)
-                x = shape (x);
-
             const C yRaw = b0 * x + state.z1;
             C y = (tap == BoundaryTap::Output) ? shape (yRaw) : yRaw;
-
-            // Output safety net. The BC bounds y for Output/State taps to
-            // |level|, but Input tap leaves the recursion linear and a pole
-            // at or past the unit circle will run y off toward fp infinity
-            // within a handful of samples. A generous absolute clamp here
-            // (well above any musical signal) keeps catastrophic configs
-            // loud-but-bounded rather than producing an inf that the host
-            // renders as a stuck DC clip.
-            constexpr float kSafetyClamp = 100.0f;
-            if (! std::isfinite (y.real()) || ! std::isfinite (y.imag()))
-                y = C { 0.0f, 0.0f };
-            y = C { std::clamp (y.real(), -kSafetyClamp, kSafetyClamp),
-                    std::clamp (y.imag(), -kSafetyClamp, kSafetyClamp) };
 
             C s1 = b1 * x - a1 * y + state.z2;
             C s2 = b2 * x - a2 * y;
@@ -88,9 +71,10 @@ namespace polezero
                 s2 = shape (s2);
             }
 
-            // x and y are now bounded, so s1/s2 stay finite for any sane
-            // input. This guard still catches the rare case of a non-finite
-            // sample arriving from the host (denormals or NaN in the bus).
+            // Either Output or State tap places the BC inside the recursion,
+            // so y / s1 / s2 stay bounded across samples. This guard still
+            // catches the rare case of a non-finite sample arriving from the
+            // host (denormals or NaN in the bus).
             if (! std::isfinite (s1.real()) || ! std::isfinite (s1.imag())) s1 = C { 0.0f, 0.0f };
             if (! std::isfinite (s2.real()) || ! std::isfinite (s2.imag())) s2 = C { 0.0f, 0.0f };
 

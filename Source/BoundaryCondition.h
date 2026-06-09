@@ -27,22 +27,21 @@ namespace polezero
 
     // Where in the filter the boundary condition bites. The same map (Clip /
     // Foldover / Modulo / Tanh) is applied, but at different signal nodes.
+    // Both taps place the BC inside the recursion, which is required to
+    // catch pole radius >= 1 — a tap outside the recursion would let the
+    // biquad math run away regardless of which shape is selected.
     //
-    //   Output  shape the output `y = b0*x + z1` before it feeds back into the
-    //           state. This is the original PoleZero behaviour and the only
-    //           tap that catches runaway when the pole radius >= 1.
-    //   State   leave y linear, but shape the next-step state memories z1, z2
-    //           before they're written. Also bounds the system, but the
-    //           audible output is the un-shaped y — runaway folds inside the
-    //           recursion rather than at the listener.
-    //   Input   shape x at the filter input; the rest of the biquad runs
-    //           linearly. This is just a waveshaper into a linear filter and
-    //           will not catch pole runaway — exposed deliberately for A/B.
+    //   Output  shape the output `y = b0*x + z1` before it feeds back into
+    //           the state. Runaway is caught at the listener, so the BC's
+    //           shape directly sets the timbre of the self-oscillation.
+    //   State   leave y linear, but shape the next-step state memories
+    //           z1, z2 before they're written. The audible output is the
+    //           un-shaped y — runaway folds inside the recursion rather
+    //           than at the listener.
     enum class BoundaryTap
     {
         Output = 0,
         State,
-        Input,
         NumBoundaryTaps
     };
 
@@ -52,7 +51,6 @@ namespace polezero
         {
             case BoundaryTap::Output: return "Output";
             case BoundaryTap::State:  return "State";
-            case BoundaryTap::Input:  return "Input";
             default:                  return "?";
         }
     }
