@@ -23,10 +23,39 @@ namespace polezero
 
         juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
+        // Piecewise centre-weighted mapping. Slider position 0.7 pins to
+        // r = 1.0 (the unit circle, where the linear filter goes unstable).
+        // Bottom 70% of slider covers the stable inside region 0..1.0 with a
+        // sqrt curve, so resolution grows as r approaches the circle. Top 30%
+        // covers the runaway region 1.0..1.6 with a square curve, so
+        // resolution is highest just past the circle (where BC character
+        // changes fastest) and lowest near 1.6 (where the BC has fully
+        // saturated and small radius moves are inaudible).
+        //
+        // Assumes start = 0 and the unit circle sits at v = 1.0; both true
+        // for kRadiusMax = 1.6. Continuous at the pivot.
         auto addRadius = [&] (const char* id, const char* name, float def)
         {
-            layout.add (std::make_unique<P> (juce::ParameterID { id, 1 }, name,
-                juce::NormalisableRange<float> (0.0f, kRadiusMax, 0.0f, 1.0f), def));
+            juce::NormalisableRange<float> range (
+                0.0f, kRadiusMax,
+                [] (float, float end, float t) -> float
+                {
+                    constexpr float pivot = 0.7f;
+                    if (t <= pivot)
+                        return std::sqrt (t / pivot);
+                    const float u = (t - pivot) / (1.0f - pivot);
+                    return 1.0f + u * u * (end - 1.0f);
+                },
+                [] (float, float end, float v) -> float
+                {
+                    constexpr float pivot = 0.7f;
+                    if (v <= 1.0f)
+                        return v * v * pivot;
+                    const float u = std::sqrt ((v - 1.0f) / (end - 1.0f));
+                    return pivot + u * (1.0f - pivot);
+                },
+                [] (float, float, float v) { return v; });
+            layout.add (std::make_unique<P> (juce::ParameterID { id, 1 }, name, range, def));
         };
 
         auto addAngle = [&] (const char* id, const char* name, float def)
