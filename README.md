@@ -1,6 +1,6 @@
 # PoleZero
 
-![PoleZero z-plane and magnitude UI](docs/screenshot.png)
+![PoleZero z-plane and magnitude UI](screenshot.png)
 
 A nonlinear z-plane filter plugin. The user drags poles and zeros around the
 unit circle on an interactive z-plane; the plugin runs **two** independent
