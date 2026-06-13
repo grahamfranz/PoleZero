@@ -1,5 +1,7 @@
 # PoleZero
 
+![PoleZero z-plane and magnitude UI](docs/screenshot.png)
+
 A nonlinear z-plane filter plugin. The user drags poles and zeros around the
 unit circle on an interactive z-plane; the plugin runs **two** independent
 biquad stages, each with its own conjugate pole pair and conjugate zero pair,
@@ -68,18 +70,15 @@ stages differ only in their poles, zeros, and conjugate lock. The same
 Clip / Foldover / Modulo / Tanh shape applies; only the signal it shapes
 changes.
 
-| Tap     | Shaped signal                                  | Catches r ≥ 1 runaway? |
-|---------|------------------------------------------------|------------------------|
-| Output  | `y = b0·x + z1` before feedback (original)     | yes                    |
-| State   | The next-step state memories `z1`, `z2`        | yes                    |
-| Input   | `x` at the filter input only                   | **no** — biquad is linear after the shaper |
+| Tap     | Shaped signal                                  |
+|---------|------------------------------------------------|
+| Output  | `y = b0·x + z1` before feedback (original)     |
+| State   | The next-step state memories `z1`, `z2`        |
 
+Both taps catch `r ≥ 1` runaway because both sit inside the recursion.
 `State` keeps the audible output linear and folds the runaway *inside* the
 recursion — the same family of sounds as `Output` but with softer edges and
-more internal mixing between the two state memories. `Input` is a waveshaper
-into a linear filter; with the pole past the unit circle the state will
-diverge until a finite-or-zero safety net inside the filter trips and resets
-it — that gating tick is part of the mode.
+more internal mixing between the two state memories.
 
 ## Feedback
 
@@ -121,7 +120,7 @@ orbit shapes change immediately.
 | `lockConjugateB`  | bool                           | Stage B: mirror secondary as conjugate of primary |
 | `routing`         | Series / Sum / Difference      | How the two stages combine                        |
 | `boundary`        | Clip / Foldover / Modulo / Tanh | Boundary shape (shared)                          |
-| `boundaryTap`     | Output / State / Input         | Where the BC bites (shared between stages)        |
+| `boundaryTap`     | Output / State                 | Where the BC bites (shared between stages)        |
 | `boundaryLevel`   | 0.3 – 4.0                      | BC threshold (shared); ≈ amplitude where it bites |
 | `feedback`        | 0.0 – 1.2                      | One-sample global feedback around the routing combine |
 | `outputDb`        | -24 – +24 dB                   | Output trim after linear auto-normalisation       |
@@ -158,6 +157,21 @@ sudo apt-get install -y \
 
 Tag a commit `v*` and push — the CI workflow at `.github/workflows/build.yml`
 builds macOS and Linux artefacts and attaches them as zips to a GitHub Release.
+
+### Running unsigned builds on macOS
+
+The release zips contain unsigned AU, VST3, and Standalone bundles. On first
+launch macOS Gatekeeper will refuse to load them. Clear the quarantine
+attribute after copying them into place:
+
+```sh
+xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/PoleZero.component
+xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/PoleZero.vst3
+xattr -dr com.apple.quarantine /path/to/PoleZero.app
+```
+
+Or build from source — the local toolchain ad-hoc signs the artefacts and the
+warning doesn't appear.
 
 ## Files
 
