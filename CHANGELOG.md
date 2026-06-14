@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Build & distribution
+
+- CI matrix now includes `windows-latest` alongside `macos-latest`
+  and `ubuntu-latest`. Future tagged releases will ship Windows VST3
+  and Standalone artefacts in addition to macOS and Linux.
+- README now carries a CI status badge.
+
 ## [0.1.0] — 2026-06-13
 
 First public release.

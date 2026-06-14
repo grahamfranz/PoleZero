@@ -1,5 +1,7 @@
 # PoleZero
 
+[![build](https://github.com/grahamfranz/PoleZero/actions/workflows/build.yml/badge.svg)](https://github.com/grahamfranz/PoleZero/actions/workflows/build.yml)
+
 ![PoleZero z-plane and magnitude UI](screenshot.png)
 
 A nonlinear z-plane filter plugin. The user drags poles and zeros around the
@@ -13,7 +15,8 @@ sits near or past the unit circle the linear recursion would diverge — the
 boundary condition catches the runaway and folds it back into the filter,
 and that nonlinear feedback is what gives each mode its character.
 
-Formats: **AU**, **VST3**, **Standalone** (macOS + Linux from CI).
+Formats: **AU**, **VST3**, **Standalone** (macOS, Linux, and Windows
+from CI; AU is macOS-only).
 
 ## Two stages
 
